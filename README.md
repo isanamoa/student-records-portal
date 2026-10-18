@@ -72,6 +72,4 @@ student-records-portal/
 
 ## AI / Tools Declaration
 
-(Replace with your own declaration before submission.)
-
-> AI assistance was used for scaffolding boilerplate and explaining WebAuthn option shapes. All authorization logic, test matrix execution, evidence capture, and the security analysis were written and verified by me.
+AI assistance (Grok) and VS Code Agent was used for project scaffolding, generating the initial Express + SimpleWebAuthn structure, and producing this evidence-report template. I personally implemented and verified the authorization middleware (requireOwnStudentOrLecturer and requireLecturerForCourse), executed every test T1–T8 against the running application, captured the Network and curl evidence, and wrote the security interpretation referring to those results. All observed outcomes and the analysis above reflect my own testing and reasoning.
