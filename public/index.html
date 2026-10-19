@@ -19,6 +19,7 @@
     <div class="header-meta">
       <div class="account-menu hidden">
         <div class="profile-summary">
+          <span id="user-avatar" class="user-avatar" aria-hidden="true"></span>
           <span class="profile-copy">
             <span id="user-name" class="user-name"></span>
             <span id="user-role" class="user-role"></span>
@@ -32,6 +33,7 @@
         </button>
         <div id="account-popover" class="account-popover hidden">
           <div class="popover-profile">
+            <span id="popover-user-avatar" class="user-avatar" aria-hidden="true"></span>
             <span class="profile-copy">
               <span id="popover-user-name" class="user-name"></span>
               <span id="popover-user-role" class="user-role"></span>
@@ -126,23 +128,62 @@
         <span class="section-icon" aria-hidden="true">⌁</span>
         <div>
           <p class="eyebrow">SECURITY LAB</p>
-          <h2 id="crypto-demo-heading">Encrypt a student record</h2>
+          <h2 id="crypto-demo-heading">Cryptographic and Data Protection Demo</h2>
         </div>
       </div>
       <p class="crypto-demo-copy">
-        Encrypt a student record from the database with AES-256-GCM, decrypt it, and verify that tampering is detected.
-        The key is temporary and never leaves the server.
+        Work through encryption and decryption separately. The temporary key remains on the server and is discarded after five minutes.
       </p>
       <div class="crypto-demo-select">
         <label for="crypto-demo-student">Student record</label>
         <select id="crypto-demo-student"></select>
       </div>
-      <div class="crypto-demo-actions">
-        <button id="btn-run-crypto-demo" class="btn primary" type="button">Run encryption demo <span aria-hidden="true">→</span></button>
-        <p class="crypto-demo-note">Each encryption uses a fresh 96-bit nonce. Never reuse a nonce with the same key.</p>
+      <div class="crypto-demo-scenarios">
+        <section class="crypto-demo-step" aria-labelledby="crypto-encrypt-heading">
+          <span class="crypto-step-number" aria-hidden="true">1</span>
+          <div class="crypto-step-content">
+            <h3 id="crypto-encrypt-heading">Encrypt database record</h3>
+            <p>Create an AES-256-GCM encrypted envelope with a fresh 96-bit nonce.</p>
+            <button id="btn-run-crypto-demo" class="btn primary" type="button">Encrypt record <span aria-hidden="true">→</span></button>
+          </div>
+        </section>
+        <section class="crypto-demo-step" aria-labelledby="crypto-tamper-heading">
+          <span class="crypto-step-number" aria-hidden="true">2</span>
+          <div class="crypto-step-content">
+            <h3 id="crypto-tamper-heading">Test tamper detection</h3>
+            <p>Change one byte in a temporary ciphertext copy and verify authentication rejects it.</p>
+            <button id="btn-test-crypto-tamper" class="btn secondary" type="button" disabled>Run integrity test <span aria-hidden="true">→</span></button>
+          </div>
+        </section>
+        <section class="crypto-demo-step" aria-labelledby="crypto-decrypt-heading">
+          <span class="crypto-step-number" aria-hidden="true">3</span>
+          <div class="crypto-step-content">
+            <h3 id="crypto-decrypt-heading">Decrypt encrypted data</h3>
+            <p>Authenticate and decrypt the saved envelope, then compare it with the original record.</p>
+            <button id="btn-decrypt-crypto-demo" class="btn secondary" type="button" disabled>Decrypt record <span aria-hidden="true">→</span></button>
+          </div>
+        </section>
       </div>
+      <p class="crypto-demo-note">Nonce reuse with the same key can break AES-GCM confidentiality and integrity. A modified ciphertext must fail authentication.</p>
       <p id="crypto-demo-status" class="status" role="status" aria-live="polite"></p>
-      <pre id="crypto-demo-result" class="crypto-demo-result hidden"></pre>
+      <section id="crypto-tamper-log-panel" class="crypto-tamper-log hidden" aria-labelledby="crypto-tamper-log-heading">
+        <div class="crypto-tamper-log-heading">
+          <h3 id="crypto-tamper-log-heading">Tamper detection test log</h3>
+          <span id="crypto-tamper-outcome" class="crypto-tamper-outcome"></span>
+        </div>
+        <p class="crypto-tamper-log-help">This evidence confirms that changing ciphertext fails authentication; the original encrypted record remains available for decryption.</p>
+        <pre id="crypto-tamper-log" class="crypto-tamper-log-output" tabindex="0" aria-label="Tamper detection test evidence log"></pre>
+      </section>
+      <div id="crypto-demo-result" class="crypto-demo-results hidden">
+        <section>
+          <h3>Encrypted data</h3>
+          <pre id="crypto-encrypted-output" class="crypto-demo-result"></pre>
+        </section>
+        <section id="crypto-decrypted-panel" class="hidden">
+          <h3>Decrypted record</h3>
+          <pre id="crypto-decrypted-output" class="crypto-demo-result"></pre>
+        </section>
+      </div>
     </section>
   </main>
 

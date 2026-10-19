@@ -30,17 +30,26 @@ Both entry points use `src/services/aes-gcm-demo.js` and Node.js's established
 built-in `node:crypto` library. In the portal, sign in and select an authorized
 student record in the Security Lab. Students can encrypt only their own record;
 lecturers can select records in their course roster. The server reads the
-student and grade data from SQLite, encrypts the JSON with AES-256-GCM, then
-decrypts it server-side while holding the temporary key. The recovered bytes
-must exactly match the original JSON. During each run, the service encrypts
-twice with one randomly generated 256-bit key and checks that each encryption
-receives a distinct, random 96-bit nonce.
+student and grade data from SQLite and encrypts the JSON with AES-256-GCM.
+Press **Encrypt record**, then **Run integrity test** to alter one byte in a
+temporary ciphertext copy and display a timestamped tamper-detection log in the
+card. A **PASS** means AES-GCM rejected the modified data; the original envelope
+is preserved. Finally, press **Decrypt record** to authenticate and decrypt that
+envelope and compare the recovered bytes to the original JSON. Capture the
+visible tamper-test log in a screenshot, or run `npm test` to verify the
+automated integrity test.
+
+During encryption, the service encrypts twice with one randomly generated
+256-bit key and checks that each encryption receives a distinct, random
+96-bit nonce.
 
 The service flips a bit in a local copy of the ciphertext. GCM authentication
 must fail during decryption; altered plaintext is never returned as valid
-data. The demonstration key exists only in server memory for that request and
-is not sent to the browser or stored. The encrypted record is returned to the
-authorized user as demonstration output; this does not encrypt or replace the
+data. The demonstration key and pending encrypted record remain in server
+memory for at most five minutes, bound to the authenticated session and student
+record, and are removed after decryption. They are not sent to the browser or
+stored persistently. The encrypted envelope and decrypted record are shown as
+authorized demonstration output; this does not encrypt or replace the
 database's stored records.
 
 Never reuse a nonce with the same AES-GCM key. Reuse can compromise

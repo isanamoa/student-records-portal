@@ -1,6 +1,11 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const { runAesGcmDemo } = require('../src/services/aes-gcm-demo');
+const {
+  beginAesGcmDemo,
+  decryptAesGcmDemo,
+  runAesGcmDemo,
+  testAesGcmTamperDetection,
+} = require('../src/services/aes-gcm-demo');
 
 test('AES-GCM demo round-trips synthetic data and verifies ciphertext integrity', () => {
   const databaseRecord = {
@@ -33,4 +38,39 @@ test('AES-GCM demo requires a student record', () => {
     name: 'TypeError',
     message: 'A database student record is required',
   });
+});
+
+test('AES-GCM encrypt and decrypt steps can be run separately', () => {
+  const record = {
+    studentId: 'S001',
+    username: 's001',
+    studentName: 'Student A (S001)',
+    grades: [],
+  };
+  const encryption = beginAesGcmDemo(record);
+  const decryption = decryptAesGcmDemo(encryption.state);
+
+  assert.deepEqual(decryption.decryptedRecord, record);
+  assert.equal(decryption.exactRoundTrip, true);
+  assert.equal(encryption.result.checks.tamperedCiphertextRejected, true);
+  assert.equal('key' in encryption.result, false);
+});
+
+test('AES-GCM tamper test rejects a modified copy and preserves the original envelope', () => {
+  const record = {
+    studentId: 'S001',
+    username: 's001',
+    studentName: 'Student A (S001)',
+    grades: [],
+  };
+  const encryption = beginAesGcmDemo(record);
+  const testResult = testAesGcmTamperDetection(encryption.state);
+
+  assert.deepEqual(testResult, {
+    tamperedComponent: 'ciphertext byte 0',
+    authenticationRejected: true,
+    tamperedCiphertextChanged: true,
+    originalEnvelopePreserved: true,
+  });
+  assert.deepEqual(decryptAesGcmDemo(encryption.state).decryptedRecord, record);
 });

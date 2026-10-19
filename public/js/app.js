@@ -70,7 +70,6 @@ function setLoggedIn(user) {
   currentUser = user;
   authSection.classList.add('hidden');
   dashboard.classList.remove('hidden');
-  cryptoDemo.classList.remove('hidden');
   accountMenu.classList.remove('hidden');
   studentView.classList.add('hidden');
   lecturerView.classList.add('hidden');
@@ -100,6 +99,7 @@ function setLoggedIn(user) {
     return;
   }
 
+  cryptoDemo.classList.remove('hidden');
   setCryptoDemoStudents(user);
   setProfileDetails(user);
   setAccountPopoverOpen(false);
@@ -263,16 +263,22 @@ $('#btn-run-crypto-demo').addEventListener('click', async event => {
   const button = event.currentTarget;
   const status = $('#crypto-demo-status');
   const output = $('#crypto-demo-result');
+  const decryptButton = $('#btn-decrypt-crypto-demo');
+  const tamperButton = $('#btn-test-crypto-tamper');
 
   button.disabled = true;
-  showStatus(status, 'Running the encryption and integrity checks…');
+  decryptButton.disabled = true;
+  tamperButton.disabled = true;
+  showStatus(status, 'Encrypting the database record and checking integrity…');
   output.classList.add('hidden');
+  $('#crypto-decrypted-panel').classList.add('hidden');
+  $('#crypto-tamper-log-panel').classList.add('hidden');
 
   try {
     const studentId = cryptoDemoStudent.value;
     if (!studentId) throw new Error('No authorized student record is available to encrypt.');
 
-    const res = await fetch(`/demo/aes-gcm/${encodeURIComponent(studentId)}`, {
+    const res = await fetch(`/demo/aes-gcm/${encodeURIComponent(studentId)}/encrypt`, {
       method: 'POST',
       credentials: 'include',
     });
@@ -286,15 +292,115 @@ $('#btn-run-crypto-demo').addEventListener('click', async event => {
       throw new Error(data.error || `Demo request failed (${res.status})`);
     }
 
-    output.textContent = JSON.stringify(data, null, 2);
+    $('#crypto-encrypted-output').textContent = JSON.stringify({
+      algorithm: data.algorithm,
+      encryptedRecord: data.encryptedRecord,
+      checks: data.checks,
+      expiresInSeconds: data.expiresInSeconds,
+    }, null, 2);
     output.classList.remove('hidden');
-    showStatus(status, 'Encryption, exact decryption, fresh nonce, and tamper checks passed.', 'success');
+    decryptButton.disabled = false;
+    tamperButton.disabled = false;
+    showStatus(status, 'Record encrypted with fresh nonces. Run the tamper test, then decrypt to verify the original record.', 'success');
   } catch (err) {
     console.error('AES-GCM portal demonstration failed:', err);
     showStatus(status, err.message || 'Unable to run the encryption demonstration.', 'error');
   } finally {
     button.disabled = false;
   }
+});
+
+$('#btn-test-crypto-tamper').addEventListener('click', async event => {
+  const button = event.currentTarget;
+  const studentId = cryptoDemoStudent.value;
+  const decryptButton = $('#btn-decrypt-crypto-demo');
+
+  button.disabled = true;
+  showStatus($('#crypto-demo-status'), 'Modifying a local ciphertext copy and testing authentication…');
+
+  try {
+    if (!studentId) throw new Error('Encrypt an authorized student record before running the integrity test.');
+
+    const res = await fetch(`/demo/aes-gcm/${encodeURIComponent(studentId)}/tamper`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error('The server returned a page instead of the test result. Restart the portal server and try again.');
+    }
+    const data = await res.json();
+    if (data.test && data.outcome) {
+      $('#crypto-tamper-outcome').textContent = data.outcome;
+      $('#crypto-tamper-outcome').className = `crypto-tamper-outcome ${data.outcome.toLowerCase()}`;
+      $('#crypto-tamper-log').textContent = JSON.stringify(data, null, 2);
+      $('#crypto-tamper-log-panel').classList.remove('hidden');
+    }
+    if (!res.ok) {
+      throw new Error(data.error || `Integrity test failed (${res.status})`);
+    }
+
+    decryptButton.disabled = false;
+    button.disabled = data.outcome === 'PASS';
+    showStatus(
+      $('#crypto-demo-status'),
+      data.outcome === 'PASS'
+        ? 'Tamper test passed. The modified ciphertext was rejected and the original remains decryptable.'
+        : 'Tamper test failed. The modified ciphertext was not rejected.',
+      data.outcome === 'PASS' ? 'success' : 'error'
+    );
+  } catch (err) {
+    console.error('AES-GCM tamper detection test failed:', err);
+    showStatus($('#crypto-demo-status'), err.message || 'Unable to run the tamper detection test.', 'error');
+    button.disabled = false;
+  }
+});
+
+$('#btn-decrypt-crypto-demo').addEventListener('click', async event => {
+  const button = event.currentTarget;
+  const status = $('#crypto-demo-status');
+  const studentId = cryptoDemoStudent.value;
+
+  button.disabled = true;
+  showStatus(status, 'Authenticating and decrypting the encrypted record…');
+
+  try {
+    if (!studentId) throw new Error('Select an authorized student record first.');
+
+    const res = await fetch(`/demo/aes-gcm/${encodeURIComponent(studentId)}/decrypt`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error('The server returned a page instead of the decryption result. Restart the portal server and try again.');
+    }
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || `Decryption request failed (${res.status})`);
+    }
+
+    $('#crypto-decrypted-output').textContent = JSON.stringify({
+      decryptedRecord: data.decryptedRecord,
+      checks: data.checks,
+    }, null, 2);
+    $('#crypto-decrypted-panel').classList.remove('hidden');
+    $('#btn-test-crypto-tamper').disabled = true;
+    showStatus(status, 'Decryption authenticated. The recovered record exactly matches the original.', 'success');
+  } catch (err) {
+    console.error('AES-GCM decryption demonstration failed:', err);
+    showStatus(status, err.message || 'Unable to decrypt the encrypted record.', 'error');
+    button.disabled = false;
+  }
+});
+
+cryptoDemoStudent.addEventListener('change', () => {
+  $('#btn-decrypt-crypto-demo').disabled = true;
+  $('#btn-test-crypto-tamper').disabled = true;
+  $('#crypto-demo-result').classList.add('hidden');
+  $('#crypto-decrypted-panel').classList.add('hidden');
+  $('#crypto-tamper-log-panel').classList.add('hidden');
+  showStatus($('#crypto-demo-status'), '');
 });
 
 // On load – check existing session

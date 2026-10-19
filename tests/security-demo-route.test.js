@@ -21,7 +21,7 @@ test('AES-GCM demo endpoint requires an authenticated session', async t => {
   });
 
   const { port } = server.address();
-  const response = await fetch(`http://127.0.0.1:${port}/demo/aes-gcm/S001`, {
+  const response = await fetch(`http://127.0.0.1:${port}/demo/aes-gcm/S001/encrypt`, {
     method: 'POST',
   });
   const result = await response.json();
@@ -48,11 +48,67 @@ test('AES-GCM demo enforces student record ownership', async t => {
   });
 
   const { port } = server.address();
-  const response = await fetch(`http://127.0.0.1:${port}/demo/aes-gcm/S002`, {
+  const response = await fetch(`http://127.0.0.1:${port}/demo/aes-gcm/S002/encrypt`, {
     method: 'POST',
   });
   const result = await response.json();
 
   assert.equal(response.status, 403);
   assert.equal(result.message, 'Students may only view their own academic record.');
+});
+
+test('AES-GCM decrypt endpoint requires a preceding encryption step', async t => {
+  const app = express();
+  app.use((req, res, next) => {
+    req.session = { userId: 'S001', role: 'student' };
+    req.sessionID = 'demo-session';
+    next();
+  });
+  app.use('/demo', securityDemoRoutes);
+  const server = app.listen(0, '127.0.0.1');
+  t.after(() => new Promise((resolve, reject) => {
+    server.close(err => err ? reject(err) : resolve());
+  }));
+
+  await new Promise((resolve, reject) => {
+    server.once('listening', resolve);
+    server.once('error', reject);
+  });
+
+  const { port } = server.address();
+  const response = await fetch(`http://127.0.0.1:${port}/demo/aes-gcm/S001/decrypt`, {
+    method: 'POST',
+  });
+  const result = await response.json();
+
+  assert.equal(response.status, 409);
+  assert.match(result.error, /Encrypt a record first/);
+});
+
+test('AES-GCM tamper endpoint requires a preceding encryption step', async t => {
+  const app = express();
+  app.use((req, res, next) => {
+    req.session = { userId: 'S001', role: 'student' };
+    req.sessionID = 'tamper-test-session';
+    next();
+  });
+  app.use('/demo', securityDemoRoutes);
+  const server = app.listen(0, '127.0.0.1');
+  t.after(() => new Promise((resolve, reject) => {
+    server.close(err => err ? reject(err) : resolve());
+  }));
+
+  await new Promise((resolve, reject) => {
+    server.once('listening', resolve);
+    server.once('error', reject);
+  });
+
+  const { port } = server.address();
+  const response = await fetch(`http://127.0.0.1:${port}/demo/aes-gcm/S001/tamper`, {
+    method: 'POST',
+  });
+  const result = await response.json();
+
+  assert.equal(response.status, 409);
+  assert.match(result.error, /Encrypt a record first/);
 });

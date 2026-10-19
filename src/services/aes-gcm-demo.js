@@ -4,6 +4,7 @@ const { createCipheriv, createDecipheriv, randomBytes } = require('node:crypto')
 const algorithm = 'aes-256-gcm';
 const nonceLength = 12;
 const authenticationTagLength = 16;
+
 function getAdditionalData(record) {
   return Buffer.from(`student-record-demo:v1:${record.studentId}`, 'utf8');
 }
@@ -32,10 +33,9 @@ function encrypt(plaintext, key, createNonce, additionalData) {
   });
   cipher.setAAD(additionalData);
 
-  const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
   return {
     nonce,
-    ciphertext,
+    ciphertext: Buffer.concat([cipher.update(plaintext), cipher.final()]),
     authTag: cipher.getAuthTag(),
   };
 }
@@ -61,7 +61,7 @@ function serializeEnvelope(envelope) {
   };
 }
 
-function runAesGcmDemo(record) {
+function beginAesGcmDemo(record) {
   if (!record || typeof record.studentId !== 'string') {
     throw new TypeError('A database student record is required');
   }
@@ -71,16 +71,11 @@ function runAesGcmDemo(record) {
   const additionalData = getAdditionalData(record);
   const originalPlaintext = Buffer.from(JSON.stringify(record), 'utf8');
   const encryptedRecord = encrypt(originalPlaintext, key, createNonce, additionalData);
-  const decryptedPlaintext = decrypt(encryptedRecord, key, additionalData);
-
-  assert.deepEqual(decryptedPlaintext, originalPlaintext);
-  assert.deepEqual(JSON.parse(decryptedPlaintext.toString('utf8')), record);
-
   const secondEncryption = encrypt(originalPlaintext, key, createNonce, additionalData);
+
   assert.equal(encryptedRecord.nonce.length, nonceLength);
   assert.equal(secondEncryption.nonce.length, nonceLength);
   assert.notDeepEqual(secondEncryption.nonce, encryptedRecord.nonce);
-  assert.deepEqual(decrypt(secondEncryption, key, additionalData), originalPlaintext);
 
   const tamperedCiphertext = Buffer.from(encryptedRecord.ciphertext);
   tamperedCiphertext[0] ^= 1;
@@ -90,19 +85,93 @@ function runAesGcmDemo(record) {
   }, key, additionalData));
 
   return {
-    algorithm: 'AES-256-GCM',
-    originalRecord: JSON.parse(originalPlaintext.toString('utf8')),
-    encryptedRecord: serializeEnvelope(encryptedRecord),
-    decryptedRecord: JSON.parse(decryptedPlaintext.toString('utf8')),
-    checks: {
-      exactRoundTrip: decryptedPlaintext.equals(originalPlaintext),
-      fresh96BitNoncePerEncryption:
-        encryptedRecord.nonce.length === nonceLength &&
-        secondEncryption.nonce.length === nonceLength &&
-        !encryptedRecord.nonce.equals(secondEncryption.nonce),
-      tamperedCiphertextRejected: true,
+    state: {
+      studentId: record.studentId,
+      key,
+      additionalData,
+      originalPlaintext,
+      encryptedRecord,
+    },
+    result: {
+      algorithm: 'AES-256-GCM',
+      encryptedRecord: serializeEnvelope(encryptedRecord),
+      checks: {
+        fresh96BitNoncePerEncryption: true,
+        tamperedCiphertextRejected: true,
+      },
     },
   };
 }
 
-module.exports = { runAesGcmDemo };
+function decryptAesGcmDemo(state) {
+  const decryptedPlaintext = decrypt(
+    state.encryptedRecord,
+    state.key,
+    state.additionalData
+  );
+
+  assert.deepEqual(decryptedPlaintext, state.originalPlaintext);
+  const decryptedRecord = JSON.parse(decryptedPlaintext.toString('utf8'));
+
+  return {
+    decryptedRecord,
+    exactRoundTrip: decryptedPlaintext.equals(state.originalPlaintext),
+  };
+}
+
+function testAesGcmTamperDetection(state) {
+  const originalCiphertext = Buffer.from(state.encryptedRecord.ciphertext);
+  const tamperedCiphertext = Buffer.from(state.encryptedRecord.ciphertext);
+  tamperedCiphertext[0] ^= 1;
+
+  let authenticationRejected = false;
+  try {
+    decrypt({
+      ...state.encryptedRecord,
+      ciphertext: tamperedCiphertext,
+    }, state.key, state.additionalData);
+  } catch {
+    authenticationRejected = true;
+  }
+
+  assert.equal(
+    authenticationRejected,
+    true,
+    'AES-GCM accepted a ciphertext modified without a matching authentication tag'
+  );
+
+  return {
+    tamperedComponent: 'ciphertext byte 0',
+    authenticationRejected,
+    tamperedCiphertextChanged: !tamperedCiphertext.equals(originalCiphertext),
+    originalEnvelopePreserved: state.encryptedRecord.ciphertext.equals(originalCiphertext),
+  };
+}
+
+function runAesGcmDemo(record) {
+  const encryption = beginAesGcmDemo(record);
+  const tamperTest = testAesGcmTamperDetection(encryption.state);
+  const decryption = decryptAesGcmDemo(encryption.state);
+  const originalRecord = JSON.parse(encryption.state.originalPlaintext.toString('utf8'));
+
+  assert.deepEqual(decryption.decryptedRecord, originalRecord);
+
+  return {
+    algorithm: encryption.result.algorithm,
+    originalRecord,
+    encryptedRecord: encryption.result.encryptedRecord,
+    decryptedRecord: decryption.decryptedRecord,
+    checks: {
+      exactRoundTrip: decryption.exactRoundTrip,
+      fresh96BitNoncePerEncryption: encryption.result.checks.fresh96BitNoncePerEncryption,
+      tamperedCiphertextRejected: tamperTest.authenticationRejected,
+    },
+  };
+}
+
+module.exports = {
+  beginAesGcmDemo,
+  decryptAesGcmDemo,
+  runAesGcmDemo,
+  testAesGcmTamperDetection,
+};
