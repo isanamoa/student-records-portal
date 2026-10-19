@@ -17,6 +17,42 @@ npm run seed                  # creates S001, S002, L001 + C101
 npm start                     # http://localhost:3000
 ```
 
+## AES-GCM Encryption Demonstration
+
+Run the demonstration from the portal's **Security Lab** card, or from the
+command line:
+
+```bash
+npm run demo:aes-gcm
+```
+
+Both entry points use `src/services/aes-gcm-demo.js` and Node.js's established
+built-in `node:crypto` library. In the portal, sign in and select an authorized
+student record in the Security Lab. Students can encrypt only their own record;
+lecturers can select records in their course roster. The server reads the
+student and grade data from SQLite, encrypts the JSON with AES-256-GCM, then
+decrypts it server-side while holding the temporary key. The recovered bytes
+must exactly match the original JSON. During each run, the service encrypts
+twice with one randomly generated 256-bit key and checks that each encryption
+receives a distinct, random 96-bit nonce.
+
+The service flips a bit in a local copy of the ciphertext. GCM authentication
+must fail during decryption; altered plaintext is never returned as valid
+data. The demonstration key exists only in server memory for that request and
+is not sent to the browser or stored. The encrypted record is returned to the
+authorized user as demonstration output; this does not encrypt or replace the
+database's stored records.
+
+Never reuse a nonce with the same AES-GCM key. Reuse can compromise
+confidentiality and authentication, allowing relationships between plaintexts
+to be exposed and making forgeries possible. Generate a new random nonce for
+each encryption, and store or transmit the nonce and authentication tag with
+the ciphertext (they are not secret).
+
+Run the automated demo checks with `npm test`.
+The CLI command reads S001 from the local database, so run `npm run seed`
+before `npm run demo:aes-gcm` if the database has not been seeded.
+
 ## Test Accounts (synthetic)
 
 | ID   | Username | Role     | Notes                          |
@@ -59,14 +95,18 @@ student-records-portal/
 ├── package.json
 ├── .env.example
 ├── README.md
-├── scripts/seed.js
+├── scripts/
+│   ├── seed.js
+│   └── demo-aes-gcm.js
+├── tests/
+│   └── aes-gcm-demo.test.js
 ├── src/
 │   ├── server.js
 │   ├── config.js
 │   ├── db/          (schema + connection)
 │   ├── middleware/  (auth + authorization)
-│   ├── routes/      (auth, students, courses)
-│   └── services/    (webauthn helpers)
+│   ├── routes/      (auth, students, courses, security demo)
+│   └── services/    (webauthn + AES-GCM helpers)
 └── public/          (frontend)
 ```
 

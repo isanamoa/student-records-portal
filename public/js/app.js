@@ -11,6 +11,9 @@ const lecturerView = $('#lecturer-view');
 const myRecord = $('#my-record');
 const rosterEl = $('#roster');
 const gradeStatus = $('#grade-status');
+const cryptoDemo = $('#crypto-demo');
+const cryptoDemoStudent = $('#crypto-demo-student');
+let currentUser = null;
 
 function showStatus(el, msg, type = '') {
   el.textContent = msg;
@@ -64,8 +67,10 @@ function getCurrentRoute() {
 }
 
 function setLoggedIn(user) {
+  currentUser = user;
   authSection.classList.add('hidden');
   dashboard.classList.remove('hidden');
+  cryptoDemo.classList.remove('hidden');
   accountMenu.classList.remove('hidden');
   studentView.classList.add('hidden');
   lecturerView.classList.add('hidden');
@@ -95,14 +100,44 @@ function setLoggedIn(user) {
     return;
   }
 
+  setCryptoDemoStudents(user);
   setProfileDetails(user);
   setAccountPopoverOpen(false);
 }
 
+function setCryptoDemoStudents(user, students = []) {
+  cryptoDemoStudent.replaceChildren();
+
+  const route = getCurrentRoute();
+  const availableStudents = user.role === 'student'
+    ? [{ id: user.id, display_name: user.displayName }]
+    : route.type === 'student-record'
+      ? [{ id: route.studentId, display_name: route.studentId }]
+      : students;
+
+  availableStudents.forEach(student => {
+    const option = document.createElement('option');
+    option.value = student.id;
+    option.textContent = `${student.display_name} (${student.id})`;
+    cryptoDemoStudent.append(option);
+  });
+
+  if (availableStudents.length === 0) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = 'No authorized student records available';
+    cryptoDemoStudent.append(option);
+  }
+
+  cryptoDemoStudent.disabled = user.role === 'student' || availableStudents.length === 0;
+}
+
 function setLoggedOut() {
   dashboard.classList.add('hidden');
+  cryptoDemo.classList.add('hidden');
   authSection.classList.remove('hidden');
   accountMenu.classList.add('hidden');
+  currentUser = null;
   setAccountPopoverOpen(false);
   studentView.classList.add('hidden');
   lecturerView.classList.add('hidden');
@@ -148,6 +183,9 @@ async function loadRoster() {
     });
     html += '</tbody></table>';
     rosterEl.innerHTML = html;
+    if (currentUser?.role === 'lecturer') {
+      setCryptoDemoStudents(currentUser, data.roster);
+    }
   } catch (err) {
     console.error('Failed to load course roster:', err);
     rosterEl.innerHTML = '<p class="status error">Unable to load this roster. Please try again.</p>';
@@ -218,6 +256,44 @@ $('#btn-update-grade').addEventListener('click', async () => {
     loadRoster();
   } else {
     showStatus(gradeStatus, data.message || data.error || 'Update failed', 'error');
+  }
+});
+
+$('#btn-run-crypto-demo').addEventListener('click', async event => {
+  const button = event.currentTarget;
+  const status = $('#crypto-demo-status');
+  const output = $('#crypto-demo-result');
+
+  button.disabled = true;
+  showStatus(status, 'Running the encryption and integrity checks…');
+  output.classList.add('hidden');
+
+  try {
+    const studentId = cryptoDemoStudent.value;
+    if (!studentId) throw new Error('No authorized student record is available to encrypt.');
+
+    const res = await fetch(`/demo/aes-gcm/${encodeURIComponent(studentId)}`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error('The server returned a page instead of the encryption result. Restart the portal server and try again.');
+    }
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || `Demo request failed (${res.status})`);
+    }
+
+    output.textContent = JSON.stringify(data, null, 2);
+    output.classList.remove('hidden');
+    showStatus(status, 'Encryption, exact decryption, fresh nonce, and tamper checks passed.', 'success');
+  } catch (err) {
+    console.error('AES-GCM portal demonstration failed:', err);
+    showStatus(status, err.message || 'Unable to run the encryption demonstration.', 'error');
+  } finally {
+    button.disabled = false;
   }
 });
 

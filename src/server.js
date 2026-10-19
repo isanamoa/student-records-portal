@@ -11,6 +11,7 @@ require('./db');
 const authRoutes = require('./routes/auth');
 const studentRoutes = require('./routes/students');
 const courseRoutes = require('./routes/courses');
+const securityDemoRoutes = require('./routes/security-demo');
 
 const app = express();
 
@@ -38,6 +39,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // API routes
 app.use('/auth', authRoutes);
+app.use('/demo', securityDemoRoutes);
 app.get('/students/:studentId', (req, res, next) => {
   const accept = req.get('accept') || '';
   if (!accept.toLowerCase().includes('text/html')) return next();

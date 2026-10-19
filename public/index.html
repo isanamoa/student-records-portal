@@ -120,6 +120,30 @@
         </section>
       </div>
     </section>
+
+    <section id="crypto-demo" class="card crypto-demo hidden" aria-labelledby="crypto-demo-heading">
+      <div class="crypto-demo-heading">
+        <span class="section-icon" aria-hidden="true">⌁</span>
+        <div>
+          <p class="eyebrow">SECURITY LAB</p>
+          <h2 id="crypto-demo-heading">Encrypt a student record</h2>
+        </div>
+      </div>
+      <p class="crypto-demo-copy">
+        Encrypt a student record from the database with AES-256-GCM, decrypt it, and verify that tampering is detected.
+        The key is temporary and never leaves the server.
+      </p>
+      <div class="crypto-demo-select">
+        <label for="crypto-demo-student">Student record</label>
+        <select id="crypto-demo-student"></select>
+      </div>
+      <div class="crypto-demo-actions">
+        <button id="btn-run-crypto-demo" class="btn primary" type="button">Run encryption demo <span aria-hidden="true">→</span></button>
+        <p class="crypto-demo-note">Each encryption uses a fresh 96-bit nonce. Never reuse a nonce with the same key.</p>
+      </div>
+      <p id="crypto-demo-status" class="status" role="status" aria-live="polite"></p>
+      <pre id="crypto-demo-result" class="crypto-demo-result hidden"></pre>
+    </section>
   </main>
 
   <footer>

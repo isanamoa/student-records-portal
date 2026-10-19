@@ -7,7 +7,8 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "seed": "node scripts/seed.js",
-    "test": "echo \"Run T1–T8 manually against the running server\" && exit 0"
+    "demo:aes-gcm": "node scripts/demo-aes-gcm.js",
+    "test": "node --test"
   },
   "keywords": ["webauthn", "passkey", "rbac", "ics570"],
   "author": "ICS570 Student",
